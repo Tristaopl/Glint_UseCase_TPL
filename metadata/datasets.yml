@@ -1,0 +1,345 @@
+# ETL Pipeline Metadata
+# Dataset definitions, lineage, and documentation
+
+datasets:
+  
+  # ===== SOURCE DATASETS =====
+  
+  - name: athlete_events
+    layer: bronze
+    source_type: csv
+    source_path: data_source/athlete_events.csv
+    description: Olympic Games athlete event participation and results
+    owner: Olympic Data Team
+    frequency: annual
+    columns:
+      - name: ID
+        type: int64
+        description: Unique athlete identifier
+        nullable: false
+      - name: Name
+        type: string
+        description: Athlete full name
+        nullable: false
+      - name: Sex
+        type: string
+        description: Athlete gender (M/F)
+        nullable: false
+      - name: Age
+        type: float
+        description: Athlete age at competition
+        nullable: true
+      - name: Height
+        type: float
+        description: Athlete height in cm
+        nullable: true
+      - name: Weight
+        type: float
+        description: Athlete weight in kg
+        nullable: true
+      - name: Team
+        type: string
+        description: Team/Country name
+        nullable: false
+      - name: NOC
+        type: string
+        description: National Olympic Committee code
+        nullable: false
+      - name: Games
+        type: string
+        description: Olympic Games name and year (e.g., "1992 Summer")
+        nullable: false
+      - name: Year
+        type: int64
+        description: Olympic Games year
+        nullable: false
+      - name: Season
+        type: string
+        description: Summer or Winter Olympics
+        nullable: false
+      - name: City
+        type: string
+        description: Host city
+        nullable: false
+      - name: Sport
+        type: string
+        description: Sport category
+        nullable: false
+      - name: Event
+        type: string
+        description: Specific event name
+        nullable: false
+      - name: Medal
+        type: string
+        description: Medal won (Gold/Silver/Bronze/None)
+        nullable: true
+    quality_rules:
+      - min_rows: 100000
+      - max_null_pct_by_column:
+          Age: 0.05
+          Height: 0.25
+          Weight: 0.25
+  
+  - name: noc_regions
+    layer: bronze
+    source_type: csv
+    source_path: data_source/noc_regions.csv
+    description: NOC code to region name mapping
+    owner: Olympic Data Team
+    frequency: annual
+    columns:
+      - name: NOC
+        type: string
+        description: National Olympic Committee code
+        nullable: false
+      - name: region
+        type: string
+        description: Country or region name
+        nullable: false
+      - name: notes
+        type: string
+        description: Historical notes about NOC
+        nullable: true
+    quality_rules:
+      - min_rows: 200
+      - max_null_pct_by_column:
+          NOC: 0.0
+          region: 0.02
+  
+  # ===== SILVER (CLEANED) DATASETS =====
+  
+  - name: athlete_events_cleaned
+    layer: silver
+    source: athlete_events (bronze)
+    description: Cleaned and standardized athlete events data
+    transformations:
+      - Remove duplicates
+      - Handle missing values (drop rows with nulls)
+      - Standardize column names
+      - Validate data types
+      - Remove statistical outliers
+    owner: Data Engineering
+    
+  - name: noc_regions_cleaned
+    layer: silver
+    source: noc_regions (bronze)
+    description: Cleaned NOC region mapping data
+    transformations:
+      - Remove duplicates
+      - Standardize column names
+    owner: Data Engineering
+  
+  # ===== GOLD (ANALYTICS) DATASETS =====
+  
+  - name: dim_athlete
+    layer: gold
+    type: dimension
+    scd_type: scd1
+    source: athlete_events_cleaned
+    description: Athlete master table with unique athletes
+    key_column: athlete_key
+    change_tracking: overwrites latest values
+    columns:
+      - name: athlete_key
+        type: int64
+        description: Surrogate key for dimension
+      - name: id
+        type: int64
+        description: Natural key - athlete ID
+      - name: name
+        type: string
+        description: Athlete full name
+      - name: sex
+        type: string
+        description: Athlete gender
+      - name: team
+        type: string
+        description: Primary team name
+      - name: height
+        type: float
+        description: Height in cm
+      - name: weight
+        type: float
+        description: Weight in kg
+      - name: dw_insert_date
+        type: timestamp
+        description: When record was inserted into DW
+      - name: dw_update_date
+        type: timestamp
+        description: When record was last updated
+  
+  - name: dim_country
+    layer: gold
+    type: dimension
+    scd_type: scd2
+    source: noc_regions_cleaned
+    description: Country/Region master table with change history
+    key_column: country_key
+    change_tracking: tracks all changes with dates
+    columns:
+      - name: country_key
+        type: int64
+        description: Surrogate key for dimension
+      - name: noc
+        type: string
+        description: Natural key - NOC code
+      - name: region
+        type: string
+        description: Country or region name
+      - name: notes
+        type: string
+        description: Historical notes
+      - name: effective_date
+        type: timestamp
+        description: When this version became active
+      - name: end_date
+        type: timestamp
+        description: When this version ended (2999-12-31 for current)
+      - name: is_current
+        type: bool
+        description: Flag indicating current version
+      - name: dw_insert_date
+        type: timestamp
+        description: When record was inserted into DW
+  
+  - name: dim_event
+    layer: gold
+    type: dimension
+    scd_type: type0
+    source: athlete_events_cleaned
+    description: Sports event master table (static)
+    key_column: event_key
+    change_tracking: none - immutable
+    columns:
+      - name: event_key
+        type: int64
+        description: Surrogate key for dimension
+      - name: event
+        type: string
+        description: Event name
+      - name: sport
+        type: string
+        description: Sport category
+      - name: dw_insert_date
+        type: timestamp
+        description: When record was inserted into DW
+  
+  - name: dim_games
+    layer: gold
+    type: dimension
+    scd_type: type0
+    source: athlete_events_cleaned
+    description: Olympic Games master table (static)
+    key_column: games_key
+    change_tracking: none - immutable
+    columns:
+      - name: games_key
+        type: int64
+        description: Surrogate key for dimension
+      - name: games
+        type: string
+        description: Games name and year
+      - name: year
+        type: int64
+        description: Games year
+      - name: season
+        type: string
+        description: Summer or Winter
+      - name: city
+        type: string
+        description: Host city
+      - name: dw_insert_date
+        type: timestamp
+        description: When record was inserted into DW
+  
+  - name: fact_athlete_event_result
+    layer: gold
+    type: fact
+    grain: one row per athlete per event per games
+    source: 
+      - athlete_events_cleaned
+      - dim_athlete
+      - dim_country
+      - dim_event
+      - dim_games
+    description: Athlete competition results and achievements
+    fact_columns:
+      - name: age
+        type: float
+        description: Athlete age at competition
+        aggregation: average
+      - name: height
+        type: float
+        description: Athlete height
+        aggregation: average
+      - name: weight
+        type: float
+        description: Athlete weight
+        aggregation: average
+      - name: medal_flag
+        type: int8
+        description: 1 if medal won, 0 otherwise
+        aggregation: sum
+    foreign_keys:
+      - name: athlete_key
+        references: dim_athlete.athlete_key
+      - name: country_key
+        references: dim_country.country_key
+      - name: event_key
+        references: dim_event.event_key
+      - name: games_key
+        references: dim_games.games_key
+    quality_rules:
+      - referential_integrity: athlete_key → dim_athlete
+      - referential_integrity: country_key → dim_country
+      - referential_integrity: event_key → dim_event
+      - referential_integrity: games_key → dim_games
+      - min_rows: 100000
+
+# ===== LINEAGE MAPPING =====
+
+lineage:
+  bronze_to_silver:
+    athlete_events: athlete_events_cleaned
+    noc_regions: noc_regions_cleaned
+  
+  silver_to_gold:
+    athlete_events_cleaned:
+      - dim_athlete
+      - dim_event
+      - dim_games
+      - fact_athlete_event_result
+    noc_regions_cleaned:
+      - dim_country
+
+# ===== REFRESH SCHEDULE =====
+
+refresh_schedule:
+  bronze: daily
+  silver: daily
+  gold: daily
+  scd2_effective_date_column: effective_date
+  scd2_end_date_column: end_date
+  scd2_is_current_column: is_current
+
+# ===== QUALITY THRESHOLDS =====
+
+quality_standards:
+  minimum_pass_rate: 0.95
+  maximum_null_percentage: 0.25
+  duplicate_keys_allowed: 0
+  referential_integrity_required: true
+
+# ===== DATA CLASSIFICATION =====
+
+classification:
+  pii_columns: []
+  confidential_datasets: []
+  public_datasets:
+    - athlete_events_cleaned
+    - noc_regions_cleaned
+    - dim_athlete
+    - dim_country
+    - dim_event
+    - dim_games
+    - fact_athlete_event_result
