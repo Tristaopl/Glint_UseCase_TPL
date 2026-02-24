@@ -1,0 +1,26 @@
+[
+  {
+    "layer": "gold",
+    "table_name": "star_schema",
+    "source": "silver_layer",
+    "start_time": "2026-02-24T21:31:01.375509",
+    "status": "success",
+    "row_count_in": 30199,
+    "row_count_out": 21829,
+    "transformations": [
+      {
+        "name": "create_dimensions",
+        "timestamp": "2026-02-24T21:31:01.504905",
+        "details": {
+          "dim_athlete_rows": 20767,
+          "dim_country_rows": 18,
+          "dim_event_rows": 562,
+          "dim_games_rows": 52,
+          "fact_rows": 430
+        }
+      }
+    ],
+    "end_time": "2026-02-24T21:31:01.511164",
+    "errors": []
+  }
+]

@@ -36,7 +36,6 @@ def test_incremental_append():
     athlete_csv = data_source / "athlete_events.csv"
     noc_csv = data_source / "noc_regions.csv"
     fact_path = GOLD_DIR / "fact_athlete_event_result.parquet"
-    fact_incremental_path = GOLD_DIR / "fact_athlete_event_result_incremental.parquet"
     
     # Check if source files exist
     if not athlete_csv.exists():
@@ -87,7 +86,7 @@ def test_incremental_append():
                                       run_quality_checks=True)
         
         # Save for incremental test
-        fact_full.to_parquet(fact_incremental_path, index=False)
+        fact_full.to_parquet(fact_path, index=False)
         print(f"\n✅ Full build completed: {len(fact_full)} fact records")
         builder.print_schema_summary(dim_a, dim_c, dim_e, dim_g, fact_full)
         
@@ -110,7 +109,7 @@ def test_incremental_append():
             builder.build_star_schema_incremental(
                 silver_athletes, 
                 silver_noc,
-                existing_fact_path=str(fact_incremental_path),
+                existing_fact_path=str(fact_path),
                 run_quality_checks=True
             )
         
@@ -155,7 +154,7 @@ def test_incremental_append():
             builder.build_star_schema_incremental(
                 silver_athletes_partial,
                 silver_noc,
-                existing_fact_path=str(fact_incremental_path),
+                existing_fact_path=str(fact_path),
                 run_quality_checks=False  # Skip for speed in test
             )
         
@@ -200,8 +199,7 @@ def test_incremental_append():
     print("="*80)
     
     print(f"\n📂 Output files:")
-    print(f"   • Full build fact: {fact_path}")
-    print(f"   • Incremental fact: {fact_incremental_path}")
+    print(f"   • Fact table: {fact_path}")
     print(f"   • Lineage logs: {lineage.log_dir}/lineage_*.json")
     print(f"   • Checkpoint: {lineage.log_dir}/fact_table_checkpoint.json")
 

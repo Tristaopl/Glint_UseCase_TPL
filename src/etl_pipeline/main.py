@@ -1,102 +1,90 @@
 """
 Main ETL Pipeline Orchestrator
-Coordinates the flow through Bronze -> Silver -> Gold layers
+Coordinates the flow through Bronze -> Silver -> Gold (Star Schema)
 """
-import pandas as pd
+from pathlib import Path
+
 from bronze import BronzeLayer
 from silver import SilverLayer
-from gold import GoldLayer
+from gold_star import GoldStarBuilder
+from governance.lineage import LineageTracker
+from governance.quality import QualityChecker
+from config import GOLD_DIR
 
 
-class ETLPipeline:
-    """Main orchestrator for the ETL pipeline"""
-
-    def __init__(self):
-        self.bronze = BronzeLayer()
-        self.silver = SilverLayer()
-        self.gold = GoldLayer()
-
-    def run(self, source_data, table_name, silver_config=None, gold_config=None):
-        """
-        Run the complete ETL pipeline
-        
-        Args:
-            source_data: Raw data source
-            table_name: Name of the table
-            silver_config: Configuration for silver layer transformations
-            gold_config: Configuration for gold layer aggregations
-            
-        Returns:
-            Tuple of (bronze_df, silver_df, gold_df)
-        """
-        print("=" * 60)
-        print(f"🚀 Starting ETL Pipeline for: {table_name}")
-        print("=" * 60)
-        
-        # Bronze Layer: Ingest raw data
-        bronze_df = self.bronze.ingest_data(source_data, table_name)
-        
-        # Silver Layer: Clean and transform
-        silver_df = self.silver.process(bronze_df, table_name, silver_config)
-        
-        # Gold Layer: Create analytics tables
-        gold_df = self.gold.create_analytics_table(silver_df, table_name, gold_config)
-        
-        print("\n" + "=" * 60)
-        print(f"✅ ETL Pipeline completed successfully!")
-        print("=" * 60 + "\n")
-        
-        return bronze_df, silver_df, gold_df
-
-
-# Example usage
-if __name__ == "__main__":
+def main() -> int:
+    """Run the full ETL pipeline and write gold star schema outputs."""
     
-    # Sample data
-    sample_data = {
-        "name": ["Alice", "Bob", "Charlie", "Alice", "David"],
-        "age": [25, 30, 35, 25, None],
-        "city": ["New York", "Paris", "London", "New York", "Berlin"],
-        "salary": [50000, 60000, 75000, 50000, 55000]
-    }
+    # Input paths
+    athlete_csv = Path("data_source") / "athlete_events.csv"
+    noc_csv = Path("data_source") / "noc_regions.csv"
     
-    # Silver layer configuration
+    if not athlete_csv.exists():
+        print(f"❌ Missing: {athlete_csv}")
+        return 1
+    if not noc_csv.exists():
+        print(f"❌ Missing: {noc_csv}")
+        return 1
+
+    print("=" * 70)
+    print("🚀 Starting ETL Pipeline (Bronze → Silver → Gold Star)")
+    print("=" * 70)
+
+    # Initialize components
+    bronze = BronzeLayer()
+    silver = SilverLayer()
+    lineage = LineageTracker()
+    quality = QualityChecker()
+    builder = GoldStarBuilder(lineage, quality)
+
+    # Bronze: ingest raw CSVs
+    bronze_athletes = bronze.ingest_data(str(athlete_csv), "athlete_events")
+    bronze_noc = bronze.ingest_data(str(noc_csv), "noc_regions")
+
+    # Silver: clean and standardize
     silver_config = {
         "type_mapping": {
             "age": "float",
-            "salary": "float"
+            "height": "float",
+            "weight": "float",
+            "year": "int"
         },
         "remove_outliers": False
     }
+    silver_athletes = silver.process(bronze_athletes, "athlete_events", silver_config)
+    silver_noc = silver.process(bronze_noc, "noc_regions", {})
+
+    # Gold: build star schema (full rebuild)
+    fact_path = GOLD_DIR / "fact_athlete_event_result.parquet"
     
-    # Gold layer configuration - Example 1: Aggregation
-    gold_config = {
-        "group_by": ["city"],
-        "aggregations": {
-            "age": "mean",
-            "salary": "sum"
-        },
-        "metrics": {
-            "employee_count": lambda df: df.groupby("city").transform("count")["age"],
-            "avg_salary": lambda df: df.groupby("city").transform("mean")["salary"]
-        }
-    }
-    
-    # Run the pipeline
-    pipeline = ETLPipeline()
-    bronze_df, silver_df, gold_df = pipeline.run(
-        sample_data,
-        "employees",
-        silver_config=silver_config,
-        gold_config=gold_config
+    dim_a, dim_c, dim_e, dim_g, fact = builder.build_star_schema(
+        silver_athletes,
+        silver_noc,
+        run_quality_checks=True
     )
-    
-    # Display results
-    print("\n📊 BRONZE LAYER (Raw Data):")
-    print(bronze_df.head())
-    
-    print("\n🧹 SILVER LAYER (Cleaned Data):")
-    print(silver_df.head())
-    
-    print("\n🏆 GOLD LAYER (Analytics Ready):")
-    print(gold_df.head())
+    print("\n✅ Full build complete")
+
+    # Save gold outputs
+    dim_a.to_parquet(GOLD_DIR / "dim_athlete.parquet", index=False)
+    dim_c.to_parquet(GOLD_DIR / "dim_country.parquet", index=False)
+    dim_e.to_parquet(GOLD_DIR / "dim_event.parquet", index=False)
+    dim_g.to_parquet(GOLD_DIR / "dim_games.parquet", index=False)
+    fact.to_parquet(fact_path, index=False)
+
+    # Save lineage
+    lineage.save_lineage_log()
+
+    print("\n📂 Gold outputs saved to:")
+    print(f"   • dim_athlete.parquet")
+    print(f"   • dim_country.parquet")
+    print(f"   • dim_event.parquet")
+    print(f"   • dim_games.parquet")
+    print(f"   • fact_athlete_event_result.parquet")
+
+    print("\n✅ Pipeline completed successfully")
+    return 0
+
+
+if __name__ == "__main__":
+    exit_code = main()
+    raise SystemExit(exit_code)
