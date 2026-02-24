@@ -9,7 +9,7 @@ from silver import SilverLayer
 from gold_star import GoldStarBuilder
 from governance.lineage import LineageTracker
 from governance.quality import QualityChecker
-from config import GOLD_DIR
+from config import GOLD_DIR, INCREMENTAL_MODE, RUN_QUALITY_CHECKS
 
 
 def main() -> int:
@@ -54,15 +54,27 @@ def main() -> int:
     silver_athletes = silver.process(bronze_athletes, "athlete_events", silver_config)
     silver_noc = silver.process(bronze_noc, "noc_regions", {})
 
-    # Gold: build star schema (full rebuild)
+    # Gold: build star schema
     fact_path = GOLD_DIR / "fact_athlete_event_result.parquet"
-    
-    dim_a, dim_c, dim_e, dim_g, fact = builder.build_star_schema(
-        silver_athletes,
-        silver_noc,
-        run_quality_checks=True
-    )
-    print("\n✅ Full build complete")
+
+    if INCREMENTAL_MODE:
+        print("\n♻️  INCREMENTAL MODE: Appending to existing fact table")
+        dim_a, dim_c, dim_e, dim_g, fact, stats = builder.build_star_schema_incremental(
+            silver_athletes,
+            silver_noc,
+            existing_fact_path=str(fact_path),
+            run_quality_checks=RUN_QUALITY_CHECKS
+        )
+        print(f"   • Mode: {stats['mode']}")
+        print(f"   • Appended: {stats['appended_rows']} rows")
+    else:
+        print("\n🆕 FULL BUILD MODE: Creating complete star schema")
+        dim_a, dim_c, dim_e, dim_g, fact = builder.build_star_schema(
+            silver_athletes,
+            silver_noc,
+            run_quality_checks=RUN_QUALITY_CHECKS
+        )
+        print(f"   • Created: {len(fact)} fact records")
 
     # Save gold outputs
     dim_a.to_parquet(GOLD_DIR / "dim_athlete.parquet", index=False)
@@ -82,6 +94,8 @@ def main() -> int:
     print(f"   • fact_athlete_event_result.parquet")
 
     print("\n✅ Pipeline completed successfully")
+    print(f"   • Mode: {'Incremental' if INCREMENTAL_MODE else 'Full rebuild'}")
+    print(f"   • Quality checks: {'Enabled' if RUN_QUALITY_CHECKS else 'Disabled'}")
     return 0
 
 

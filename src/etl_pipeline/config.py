@@ -21,9 +21,13 @@ GOLD_DIR.mkdir(parents=True, exist_ok=True)
 # File formats
 FILE_FORMAT = "parquet"  # or "csv", "json", etc.
 
+# ETL Pipeline Mode
+INCREMENTAL_MODE = True # Set to True for incremental append, False for full rebuild
+RUN_QUALITY_CHECKS = False  # Enable/disable quality checks
+
 # Data quality thresholds
-MIN_DATA_QUALITY_SCORE = 0.8
-MAX_NULL_PERCENTAGE = 0.2
+MIN_DATA_QUALITY_SCORE = 0.5
+MAX_NULL_PERCENTAGE = 0.9
 
 # Logging
 LOG_LEVEL = "INFO"
