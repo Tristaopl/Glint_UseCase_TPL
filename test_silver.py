@@ -1,4 +1,4 @@
-                                                                                                                                                                                                                                                                                                                                                                                        """
+"""
 Test script for Silver Layer
 Tests data cleaning and transformation
 """

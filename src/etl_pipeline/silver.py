@@ -1,13 +1,8 @@
-"""
-Silver Layer - Data cleaning and transformation
-Standardize, validate, and enrich data for business use
-"""
 import pandas as pd
 import numpy as np
 from datetime import datetime
 from pathlib import Path
 from config import SILVER_DIR, FILE_FORMAT
-
 
 class SilverLayer:
     """Handles data cleaning, validation, and transformation"""

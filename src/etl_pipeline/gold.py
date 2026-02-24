@@ -271,13 +271,13 @@ class GoldQueries:
     def medals_by_sport(fact, dim_event):
         """Medal count by sport"""
         result = (fact[fact['medal_flag'] == 1]
-                  .groupby('event_key')
-                  .agg({'medal_flag': 'sum'})
+                  .groupby('event_key')['medal_flag']
+                  .sum()
                   .reset_index(name='medal_count')
                   .merge(dim_event[['event_key', 'sport']], on='event_key')
                   .groupby('sport')['medal_count']
                   .sum()
-                  .reset_index()
+                  .reset_index(name='medal_count')
                   .sort_values('medal_count', ascending=False))
         return result
 

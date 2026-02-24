@@ -151,3 +151,59 @@ class LineageTracker:
         
         print(f"📊 Lineage report saved to: {output_file}")
         return df
+    def store_fact_table_checkpoint(self, fact_table_size: int = None,
+                                   new_rows_processed: int = None,
+                                   timestamp: datetime = None):
+        """
+        Store checkpoint for fact table incremental processing
+        
+        Args:
+            fact_table_size: Total rows in fact table
+            new_rows_processed: Number of new rows added
+            timestamp: Timestamp of checkpoint
+        """
+        if timestamp is None:
+            timestamp = datetime.now()
+        
+        checkpoint = {
+            "fact_table_size": fact_table_size,
+            "new_rows_processed": new_rows_processed,
+            "checkpoint_timestamp": timestamp.isoformat()
+        }
+        
+        # Store in last run if exists
+        if self.runs:
+            self.runs[-1]["fact_checkpoint"] = checkpoint
+        
+        # Also save to dedicated file for recovery
+        checkpoint_file = self.log_dir / "fact_table_checkpoint.json"
+        checkpoint_list = []
+        
+        if checkpoint_file.exists():
+            with open(checkpoint_file, 'r') as f:
+                checkpoint_list = json.load(f)
+        
+        checkpoint_list.append(checkpoint)
+        
+        with open(checkpoint_file, 'w') as f:
+            json.dump(checkpoint_list, f, indent=2)
+
+    def get_fact_table_checkpoint(self):
+        """
+        Retrieve latest fact table checkpoint
+        
+        Returns:
+            Dictionary with checkpoint info or None if no checkpoint exists
+        """
+        checkpoint_file = self.log_dir / "fact_table_checkpoint.json"
+        
+        if not checkpoint_file.exists():
+            return None
+        
+        with open(checkpoint_file, 'r') as f:
+            checkpoints = json.load(f)
+        
+        if checkpoints:
+            return checkpoints[-1]  # Return latest
+        
+        return None
