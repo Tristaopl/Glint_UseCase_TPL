@@ -7,7 +7,8 @@
 4. [Slowly Changing Dimensions](#scd)
 5. [File Reference](#file-reference)
 6. [Usage Examples](#usage-examples)
-7. [Data Lineage](#data-lineage)
+7. [Testing & Quality Assurance](#testing--quality-assurance)
+8. [Data Lineage](#data-lineage)
 
 ---
 
@@ -934,6 +935,114 @@ else:
     print("❌ Quality issues found:")
     for failure in report['failures']:
         print(f"   • {failure}")
+```
+
+---
+
+## 🧪 Testing & Quality Assurance
+
+### Test Suite Overview
+
+Complete automated testing framework for each ETL layer with quality validation and lineage tracking.
+
+---
+
+### Running Layer Tests
+
+**1️⃣ Bronze Layer Test**
+```bash
+python test_bronze.py
+```
+**What it tests:**
+- CSV ingestion from `data_source/`
+- Metadata addition (`_ingestion_timestamp`, `_source_system`)
+- Parquet file saving
+- Row counts and column counts
+
+**Output:** Bronze parquet files in `src/etl_pipeline/data/bronze/`
+
+---
+
+**2️⃣ Silver Layer Test**
+```bash
+python test_silver.py
+```
+**What it tests:**
+- Loads bronze parquet files
+- Data cleaning: deduplication, null handling, standardization
+- Column name normalization (lowercase, snake_case)
+- Data type conversion
+- Optional outlier removal (z-score)
+- Metadata addition (`_processing_timestamp`, `_layer`)
+
+**Output:** Silver parquet files in `src/etl_pipeline/data/silver/`
+
+---
+
+**3️⃣ Gold Layer Test**
+```bash
+python test_gold.py
+```
+**What it tests:**
+- Loads silver parquet files
+- Creates all dimensions (athlete SCD1, country SCD2, event Type0, games Type0)
+- Creates fact table with foreign keys
+- Verifies dimension key sequences and uniqueness
+- Validates referential integrity (all foreign keys exist)
+- Generates sample analytics queries
+- Medal statistics and top reports
+
+**Output:** Gold parquet files in `src/etl_pipeline/data/gold/`
+- `dim_athlete.parquet` (SCD1)
+- `dim_country.parquet` (SCD2)
+- `dim_event.parquet` (Type0)
+- `dim_games.parquet` (Type0)
+- `fact_athlete_event_result.parquet` (430+ facts)
+
+---
+
+**4️⃣ Incremental Append Test**
+```bash
+python test_incremental_append.py
+```
+**What it tests:**
+- Full star schema build (initial load)
+- Incremental append with same data (deduplication)
+- Incremental append with partial new data
+- Composite key deduplication (athlete_key, event_key, games_key)
+- Lineage tracking and checkpoint storage
+- Idempotent behavior (safe re-runs)
+
+**Output:** 
+- Incremental fact table: `src/etl_pipeline/data/gold/fact_athlete_event_result_incremental.parquet`
+- Checkpoint log: `src/etl_pipeline/logs/fact_table_checkpoint.json`
+
+---
+
+**5️⃣ Data Quality Test**
+```bash
+python test_quality.py
+```
+**What it tests:**
+- Dimension quality checks (row counts, nulls, duplicates)
+- Fact table validation (row requirements, data types)
+- Referential integrity (all foreign keys valid)
+- Quality report generation and pass rate assertion (90% minimum)
+
+**Output:** 
+- Console quality report with metrics
+- CSV report: `src/etl_pipeline/data/gold/quality_report.csv`
+
+---
+
+### Quick Test All Layers
+
+```powershell
+python test_bronze.py
+python test_silver.py
+python test_gold.py
+python test_incremental_append.py
+python test_quality.py
 ```
 
 ---
