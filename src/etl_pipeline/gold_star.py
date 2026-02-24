@@ -291,13 +291,11 @@ class GoldStarBuilder:
         # Create composite keys for comparison
         existing_keys = (existing_fact[key_columns]
                         .astype(str)
-                        .agg('|'.join, axis=1)
-                        .set_index(existing_fact.index))
+                        .agg('|'.join, axis=1))
         
         new_keys = (new_fact[key_columns]
                    .astype(str)
-                   .agg('|'.join, axis=1)
-                   .set_index(new_fact.index))
+                   .agg('|'.join, axis=1))
         
         # Find rows not in existing fact (new rows)
         mask_new = ~new_keys.isin(existing_keys)
