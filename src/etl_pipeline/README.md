@@ -269,8 +269,6 @@ clean_df = silver.process(bronze_df, "athletes", silver_config)
 
 ### SCD Implementation
 
-```python
-from etl_pipeline.governance.scd import SCD1, SCD2
 
 # SCD1: Overwrites old values
 scd1 = SCD1()
@@ -346,26 +344,6 @@ is_valid = quality.assert_quality(min_pass_rate=0.90)
 4. **Append only new records** to avoid duplicates
 5. **Store checkpoint** with row counts and timestamp
 
-### When to Use
-
-| Scenario | Mode | Benefits |
-|----------|------|----------|
-| Initial load | Full build | Complete dataset creation |
-| Daily delta (< 10%) | Incremental | 5-10x faster |
-| Monthly rebuild | Full build | Data quality refresh |
-| Ad-hoc batch | Incremental | Avoid reprocessing |
-
-### Performance Example
-
-```python
-# Full build: 430 facts in 45 seconds
-dim_a, dim_c, dim_e, dim_g, fact = builder.build_star_schema(athletes, noc)
-
-# Incremental append (same data): 435 facts in 8 seconds (5.6x faster)
-dim_a, dim_c, dim_e, dim_g, fact, stats = \
-    builder.build_star_schema_incremental(athletes, noc, 
-                                         existing_fact_path='gold/fact_athlete_event_result.parquet')
-```
 
 ## Dependencies
 
@@ -400,41 +378,7 @@ FILE_FORMAT = "parquet"  # Options: "parquet", "csv", "json"
 6. **Test idempotency** - Re-run same data to verify deduplication works
 7. **Version dimensions** - Keep historical snapshots for reporting consistency
 
-## Testing
 
-### Run Individual Tests
-
-```bash
-# Bronze layer (CSV → Parquet)
-python test_bronze.py
-
-# Silver layer (Cleaning)
-python test_silver.py
-
-# Gold layer (Star schema)
-python test_gold.py
-
-# Incremental append (Full + Delta)
-python test_incremental_append.py
-
-# Data quality validation
-python test_quality.py
-```
-
-### Expected Output
-
-All tests should show:
-- ✅ Layer completion with row counts
-- ✅ Dimension and fact table creation
-- ✅ Quality checks passing (90%+ pass rate)
-- ✅ Lineage and checkpoint logging
-
-### Type Checking
-
-```bash
-pip install mypy
-mypy src/etl_pipeline/
-```
 
 ## Data Flow Diagram
 
