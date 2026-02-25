@@ -110,7 +110,12 @@ class SilverLayer:
         # Standard cleaning steps
         df = self.standardize_column_names(df)
         df = self.remove_duplicates(df)
-        df = self.handle_missing_values(df, strategy="drop")
+        
+        # Get missing value strategy from config or use default
+        missing_strategy = "drop"
+        if config and "missing_strategy" in config:
+            missing_strategy = config["missing_strategy"]
+        df = self.handle_missing_values(df, strategy=missing_strategy)
         
         # Optional transformations from config
         if config:
