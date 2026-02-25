@@ -5,6 +5,7 @@ Creates dimensional and fact tables for business analytics
 import pandas as pd
 from datetime import datetime
 from pathlib import Path
+from typing import Optional
 from config import GOLD_DIR, GOLD_STAGING_DIR, FILE_FORMAT
 
 
@@ -156,7 +157,7 @@ class GoldLayer:
 
     # ===== SAVE TABLES =====
 
-    def save_table(self, df, table_name, target_dir: Path = None):
+    def save_table(self, df, table_name, target_dir: Optional[Path] = None):
         """Save a table to gold layer or a specified directory"""
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"{table_name}.{self.file_format}"
@@ -175,7 +176,7 @@ class GoldLayer:
 
     def create_star_schema(self, df_athletes, df_noc_regions,
                            save_tables: bool = True,
-                           target_dir: Path = None):
+                           target_dir: Optional[Path] = None):
         """
         Create complete star schema (dimensions + fact)
         
@@ -235,7 +236,7 @@ class GoldLayer:
 class GoldStarBuilder:
     """Builds star schema with an optional staging step"""
 
-    def __init__(self, staging_dir: Path = None):
+    def __init__(self, staging_dir: Optional[Path] = None):
         self.gold = GoldLayer()
         self.staging_dir = staging_dir or GOLD_STAGING_DIR
 
@@ -385,7 +386,7 @@ class GoldStarBuilder:
 
     def build_star_schema_incremental(self, df_athletes: pd.DataFrame,
                                       df_noc_regions: pd.DataFrame,
-                                      existing_fact_path: str = None,
+                                      existing_fact_path: Optional[str] = None,
                                       run_quality_checks: bool = True):
         """
         Build star schema with a staging step and incremental fact append.

@@ -6,12 +6,13 @@ import json
 import pandas as pd
 from datetime import datetime
 from pathlib import Path
+from typing import Optional, List, Dict, Any
 
 
 class LineageTracker:
     """Tracks ETL execution lineage and logs"""
 
-    def __init__(self, log_dir: Path = None):
+    def __init__(self, log_dir: Optional[Path] = None):
         """
         Initialize lineage tracker
         
@@ -23,9 +24,9 @@ class LineageTracker:
         
         self.log_dir = Path(log_dir)
         self.log_dir.mkdir(parents=True, exist_ok=True)
-        self.runs = []
+        self.runs: List[Dict[str, Any]] = []
 
-    def start_run(self, layer: str, table_name: str, source: str = None):
+    def start_run(self, layer: str, table_name: str, source: Optional[str] = None):
         """
         Log the start of a layer run
         
@@ -34,7 +35,7 @@ class LineageTracker:
             table_name: Name of table being processed
             source: Source of data (file path, database, etc.)
         """
-        run = {
+        run: Dict[str, Any] = {
             "layer": layer,
             "table_name": table_name,
             "source": source,
@@ -47,7 +48,7 @@ class LineageTracker:
         self.runs.append(run)
         return run
 
-    def log_transformation(self, transformation_name: str, details: dict = None):
+    def log_transformation(self, transformation_name: str, details: Optional[Dict[str, Any]] = None):
         """
         Log a transformation within the current run
         
@@ -64,8 +65,8 @@ class LineageTracker:
             }
             current_run["transformations"].append(transformation)
 
-    def end_run(self, status: str = "success", row_count_in: int = None, 
-                row_count_out: int = None, errors: list = None):
+    def end_run(self, status: str = "success", row_count_in: Optional[int] = None, 
+                row_count_out: Optional[int] = None, errors: Optional[List[Any]] = None):
         """
         Log the end of a layer run
         
@@ -94,7 +95,7 @@ class LineageTracker:
         print(f"📋 Lineage log saved to: {log_file}")
         return log_file
 
-    def get_run_history(self, layer: str = None, table_name: str = None):
+    def get_run_history(self, layer: Optional[str] = None, table_name: Optional[str] = None):
         """Get run history, optionally filtered by layer and table"""
         history = self.runs
         
@@ -126,10 +127,10 @@ class LineageTracker:
             if run['errors']:
                 print(f"   ⚠️  Errors: {len(run['errors'])}")
 
-    def export_lineage_report(self, output_file: str = None):
+    def export_lineage_report(self, output_file: Optional[str] = None):
         """Export lineage as CSV report"""
         if output_file is None:
-            output_file = self.log_dir / "lineage_report.csv"
+            output_file = str(self.log_dir / "lineage_report.csv")
         
         records = []
         for run in self.runs:
@@ -151,9 +152,9 @@ class LineageTracker:
         
         print(f"📊 Lineage report saved to: {output_file}")
         return df
-    def store_fact_table_checkpoint(self, fact_table_size: int = None,
-                                   new_rows_processed: int = None,
-                                   timestamp: datetime = None):
+    def store_fact_table_checkpoint(self, fact_table_size: Optional[int] = None,
+                                   new_rows_processed: Optional[int] = None,
+                                   timestamp: Optional[datetime] = None):
         """
         Store checkpoint for fact table incremental processing
         
