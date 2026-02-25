@@ -1,0 +1,31 @@
+[
+  {
+    "layer": "gold",
+    "table_name": "star_schema_incremental",
+    "source": "silver_layer",
+    "start_time": "2026-02-24T21:44:05.175315",
+    "status": "success",
+    "row_count_in": 30199,
+    "row_count_out": 430,
+    "transformations": [
+      {
+        "name": "incremental_append",
+        "timestamp": "2026-02-24T21:44:05.538511",
+        "details": {
+          "mode": "incremental",
+          "new_rows": 430,
+          "appended_rows": 0,
+          "duplicates_skipped": 430,
+          "total_fact_rows": 430
+        }
+      }
+    ],
+    "fact_checkpoint": {
+      "fact_table_size": 430,
+      "new_rows_processed": 430,
+      "checkpoint_timestamp": "2026-02-24T21:44:05.538519"
+    },
+    "end_time": "2026-02-24T21:44:05.539518",
+    "errors": []
+  }
+]

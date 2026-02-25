@@ -12,11 +12,13 @@ DATA_DIR = BASE_DIR / "data"
 BRONZE_DIR = DATA_DIR / "bronze"
 SILVER_DIR = DATA_DIR / "silver"
 GOLD_DIR = DATA_DIR / "gold"
+GOLD_STAGING_DIR = DATA_DIR / "gold_staging"
 
 # Ensure directories exist
 BRONZE_DIR.mkdir(parents=True, exist_ok=True)
 SILVER_DIR.mkdir(parents=True, exist_ok=True)
 GOLD_DIR.mkdir(parents=True, exist_ok=True)
+GOLD_STAGING_DIR.mkdir(parents=True, exist_ok=True)
 
 # File formats
 FILE_FORMAT = "parquet"  # or "csv", "json", etc.

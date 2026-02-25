@@ -8,7 +8,7 @@ from pathlib import Path
 # Add etl_pipeline to path
 sys.path.insert(0, str(Path(__file__).parent / "src" / "etl_pipeline"))
 
-from gold import GoldLayer, GoldQueries
+from gold import GoldLayer
 from config import GOLD_DIR, SILVER_DIR
 import pandas as pd
 
@@ -86,45 +86,7 @@ def test_gold_layer():
     print(f"   All event_keys valid:   {all(fact['event_key'].isin(dim_event['event_key']))}")
     print(f"   All games_keys valid:   {all(fact['games_key'].isin(dim_games['games_key']))}")
     
-    # Test 4: Generate reports with query examples
-    print("\n" + "-"*70)
-    print("Test 4: Generating example reports")
-    print("-"*70)
-    
-    queries = GoldQueries()
-    
-    # Top athletes by medals
-    print("\n🥇 TOP 10 ATHLETES BY MEDALS:")
-    top_athletes = queries.top_athletes_by_medals(fact, dim_athlete)
-    if len(top_athletes) > 0:
-        print(top_athletes.to_string(index=False))
-    else:
-        print("   No medals found")
-    
-    # Medals by country
-    print("\n🏆 TOP 20 COUNTRIES BY MEDALS:")
-    top_countries = queries.medals_by_country(fact, dim_country)
-    if len(top_countries) > 0:
-        print(top_countries.head(15).to_string(index=False))
-    else:
-        print("   No medals found")
-    
-    # Medals by sport
-    print("\n⚽ MEDALS BY SPORT:")
-    sport_medals = queries.medals_by_sport(fact, dim_event)
-    if len(sport_medals) > 0:
-        print(sport_medals.to_string(index=False))
-    else:
-        print("   No medals found")
-    
-    # Medals by games
-    print("\n🎯 MEDALS BY OLYMPIC GAMES:")
-    games_medals = queries.medals_by_games(fact, dim_games)
-    if len(games_medals) > 0:
-        print(games_medals.to_string(index=False))
-    else:
-        print("   No medals found")
-    
+ 
     # Test 5: Verify saved files
     print("\n" + "-"*70)
     print("Test 5: Verifying saved files")

@@ -6,9 +6,7 @@ from pathlib import Path
 
 from bronze import BronzeLayer
 from silver import SilverLayer
-from gold_star import GoldStarBuilder
-from governance.lineage import LineageTracker
-from governance.quality import QualityChecker
+from gold import GoldStarBuilder
 from config import GOLD_DIR, INCREMENTAL_MODE, RUN_QUALITY_CHECKS
 
 
@@ -33,9 +31,7 @@ def main() -> int:
     # Initialize components
     bronze = BronzeLayer()
     silver = SilverLayer()
-    lineage = LineageTracker()
-    quality = QualityChecker()
-    builder = GoldStarBuilder(lineage, quality)
+    builder = GoldStarBuilder()
 
     # Bronze: ingest raw CSVs
     bronze_athletes = bronze.ingest_data(str(athlete_csv), "athlete_events")
@@ -82,9 +78,6 @@ def main() -> int:
     dim_e.to_parquet(GOLD_DIR / "dim_event.parquet", index=False)
     dim_g.to_parquet(GOLD_DIR / "dim_games.parquet", index=False)
     fact.to_parquet(fact_path, index=False)
-
-    # Save lineage
-    lineage.save_lineage_log()
 
     print("\n📂 Gold outputs saved to:")
     print(f"   • dim_athlete.parquet")

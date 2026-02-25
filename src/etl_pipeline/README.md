@@ -35,7 +35,7 @@ A production-grade three-layer medallion ETL pipeline with star schema, slowly c
   - **Facts** (1): fact_athlete_event_result with foreign keys
 - **Processing**: Incremental append mode (full rebuild optional), composite key deduplication
 - **Output**: Denormalized fact table with dimension keys in Parquet format
-- **Files**: `gold.py`, `gold_star.py` | Tests: `test_gold.py`, `test_incremental_append.py`
+- **Files**: `gold.py` | Tests: `test_gold.py`, `test_incremental_append.py`
 
 ## Project Structure
 
@@ -55,8 +55,7 @@ etl_pipeline/
 │   └── fact_table_checkpoint.json  # Incremental append state
 ├── bronze.py            # Bronze layer implementation
 ├── silver.py            # Silver layer implementation
-├── gold.py              # Gold layer (simple aggregations)
-├── gold_star.py         # Gold layer (star schema + incremental)
+├── gold.py              # Gold layer (star schema + incremental)
 ├── config.py            # Configuration settings
 ├── governance/
 │   ├── quality.py       # Data quality framework
@@ -91,16 +90,12 @@ python test_quality.py     # Validate data quality
 ```python
 from etl_pipeline.bronze import BronzeLayer
 from etl_pipeline.silver import SilverLayer
-from etl_pipeline.gold_star import GoldStarBuilder
-from etl_pipeline.governance.lineage import LineageTracker
-from etl_pipeline.governance.quality import QualityChecker
+from etl_pipeline.gold import GoldStarBuilder
 
 # Initialize
 bronze = BronzeLayer()
 silver = SilverLayer()
-lineage = LineageTracker()
-quality = QualityChecker()
-builder = GoldStarBuilder(lineage, quality)
+builder = GoldStarBuilder()
 
 # Load and clean data
 bronze_athletes = bronze.ingest_data("athlete_events.csv", "athletes")
@@ -218,13 +213,9 @@ df = silver.remove_outliers(df)               # z-score based
 ### Gold Layer - Star Schema
 
 ```python
-from etl_pipeline.gold_star import GoldStarBuilder
-from etl_pipeline.governance.lineage import LineageTracker
-from etl_pipeline.governance.quality import QualityChecker
+from etl_pipeline.gold import GoldStarBuilder
 
-lineage = LineageTracker()
-quality = QualityChecker()
-builder = GoldStarBuilder(lineage, quality)
+builder = GoldStarBuilder()
 
 # **FULL BUILD** (initial load or periodic rebuild)
 dim_athlete, dim_country, dim_event, dim_games, fact = \
@@ -493,17 +484,13 @@ MIN_QUALITY_PASS_RATE = 0.90
 # Daily pipeline run
 from etl_pipeline.bronze import BronzeLayer
 from etl_pipeline.silver import SilverLayer
-from etl_pipeline.gold_star import GoldStarBuilder
-from etl_pipeline.governance.lineage import LineageTracker
-from etl_pipeline.governance.quality import QualityChecker
+from etl_pipeline.gold import GoldStarBuilder
 
 def daily_etl():
     # Initialize
     bronze = BronzeLayer()
     silver = SilverLayer()
-    lineage = LineageTracker()
-    quality = QualityChecker()
-    builder = GoldStarBuilder(lineage, quality)
+    builder = GoldStarBuilder()
     
     # Load and clean
     bronze_athletes = bronze.ingest_data("new_data.csv", "athletes")

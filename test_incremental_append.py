@@ -11,9 +11,7 @@ sys.path.insert(0, str(Path(__file__).parent / "src" / "etl_pipeline"))
 
 from bronze import BronzeLayer
 from silver import SilverLayer
-from gold_star import GoldStarBuilder
-from governance.lineage import LineageTracker
-from governance.quality import QualityChecker
+from gold import GoldStarBuilder
 from config import GOLD_DIR, DATA_DIR
 
 def test_incremental_append():
@@ -24,9 +22,7 @@ def test_incremental_append():
     print("="*80)
     
     # Initialize components
-    lineage = LineageTracker()
-    quality = QualityChecker()
-    builder = GoldStarBuilder(lineage, quality)
+    builder = GoldStarBuilder()
     
     bronze = BronzeLayer()
     silver = SilverLayer()
@@ -177,31 +173,12 @@ def test_incremental_append():
         traceback.print_exc()
         return
     
-    # ========================================
-    # REVIEW LINEAGE
-    # ========================================
-    print("\n" + "="*80)
-    print("📋 LINEAGE & CHECKPOINTS")
-    print("="*80)
-    
-    lineage.print_lineage_summary()
-    
-    # Get checkpoint info
-    checkpoint = lineage.get_fact_table_checkpoint()
-    if checkpoint:
-        print(f"\n📍 Latest Fact Table Checkpoint:")
-        print(f"   • Size: {checkpoint['fact_table_size']} rows")
-        print(f"   • New rows in last run: {checkpoint['new_rows_processed']}")
-        print(f"   • Timestamp: {checkpoint['checkpoint_timestamp']}")
-    
     print("\n" + "="*80)
     print("✅ TEST COMPLETED SUCCESSFULLY")
     print("="*80)
     
     print(f"\n📂 Output files:")
     print(f"   • Fact table: {fact_path}")
-    print(f"   • Lineage logs: {lineage.log_dir}/lineage_*.json")
-    print(f"   • Checkpoint: {lineage.log_dir}/fact_table_checkpoint.json")
 
 if __name__ == "__main__":
     test_incremental_append()

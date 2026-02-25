@@ -744,7 +744,7 @@ def validate_scd2_structure(dim_table, key_column, ...)
 
 ---
 
-#### `gold_star.py` - Star Schema Builder
+#### `gold.py` - Star Schema Builder
 
 **Class**: `GoldStarBuilder`
 
@@ -762,13 +762,9 @@ def build_star_schema(df_athletes, df_noc_regions, run_quality_checks=True)
 - **Returns**: Tuple of (dim_athlete, dim_country, dim_event, dim_games, fact)
 - **Example**:
   ```python
-  from gold_star import GoldStarBuilder
-  from governance.lineage import LineageTracker
-  from governance.quality import QualityChecker
+  from gold import GoldStarBuilder
   
-  lineage = LineageTracker()
-  quality = QualityChecker()
-  builder = GoldStarBuilder(lineage, quality)
+  builder = GoldStarBuilder()
   
   dims_fact = builder.build_star_schema(df_athletes, df_noc)
   dim_a, dim_c, dim_e, dim_g, fact = dims_fact
@@ -833,14 +829,10 @@ Comprehensive data dictionary covering:
 import pandas as pd
 from bronze import BronzeLayer
 from silver import SilverLayer
-from gold_star import GoldStarBuilder
-from governance.lineage import LineageTracker
-from governance.quality import QualityChecker
+from gold import GoldStarBuilder
 
-# Initialize all components
-lineage = LineageTracker()
-quality = QualityChecker()
-builder = GoldStarBuilder(lineage, quality)
+# Initialize
+builder = GoldStarBuilder()
 
 bronze = BronzeLayer()
 silver = SilverLayer()
@@ -1219,7 +1211,7 @@ def build_star_schema_incremental(df_athletes, df_noc_regions,
 
 **Example**:
 ```python
-from gold_star import GoldStarBuilder
+from gold import GoldStarBuilder
 
 builder = GoldStarBuilder()
 

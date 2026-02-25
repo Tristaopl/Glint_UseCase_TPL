@@ -18,5 +18,10 @@
     "fact_table_size": 435,
     "new_rows_processed": 5,
     "checkpoint_timestamp": "2026-02-24T19:14:52.651854"
+  },
+  {
+    "fact_table_size": 430,
+    "new_rows_processed": 430,
+    "checkpoint_timestamp": "2026-02-24T21:44:05.538519"
   }
 ]

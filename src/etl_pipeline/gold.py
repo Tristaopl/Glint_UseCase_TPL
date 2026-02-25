@@ -5,7 +5,7 @@ Creates dimensional and fact tables for business analytics
 import pandas as pd
 from datetime import datetime
 from pathlib import Path
-from config import GOLD_DIR, FILE_FORMAT
+from config import GOLD_DIR, GOLD_STAGING_DIR, FILE_FORMAT
 
 
 class GoldLayer:
@@ -156,11 +156,12 @@ class GoldLayer:
 
     # ===== SAVE TABLES =====
 
-    def save_table(self, df, table_name):
-        """Save a table to gold layer"""
+    def save_table(self, df, table_name, target_dir: Path = None):
+        """Save a table to gold layer or a specified directory"""
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"{table_name}.{self.file_format}"
-        filepath = self.gold_dir / filename
+        base_dir = target_dir or self.gold_dir
+        filepath = base_dir / filename
 
         if self.file_format == "parquet":
             df.to_parquet(filepath, index=False)
@@ -172,7 +173,9 @@ class GoldLayer:
 
     # ===== STAR SCHEMA CREATION =====
 
-    def create_star_schema(self, df_athletes, df_noc_regions):
+    def create_star_schema(self, df_athletes, df_noc_regions,
+                           save_tables: bool = True,
+                           target_dir: Path = None):
         """
         Create complete star schema (dimensions + fact)
         
@@ -198,15 +201,16 @@ class GoldLayer:
         )
 
         # Save all tables
-        print("\n💾 SAVING TABLES...")
-        print("\nDimension Tables:")
-        self.save_table(dim_athlete, "dim_athlete")
-        self.save_table(dim_country, "dim_country")
-        self.save_table(dim_event, "dim_event")
-        self.save_table(dim_games, "dim_games")
-        
-        print("\nFact Table:")
-        self.save_table(fact, "fact_athlete_event_result")
+        if save_tables:
+            print("\n💾 SAVING TABLES...")
+            print("\nDimension Tables:")
+            self.save_table(dim_athlete, "dim_athlete", target_dir=target_dir)
+            self.save_table(dim_country, "dim_country", target_dir=target_dir)
+            self.save_table(dim_event, "dim_event", target_dir=target_dir)
+            self.save_table(dim_games, "dim_games", target_dir=target_dir)
+            
+            print("\nFact Table:")
+            self.save_table(fact, "fact_athlete_event_result", target_dir=target_dir)
 
         # Print schema summary
         print("\n" + "-"*70)
@@ -220,16 +224,6 @@ class GoldLayer:
         print(f"\n📈 Fact Table:")
         print(f"   • fact_athlete_event_result:  {len(fact):>7} rows")
         
-        print(f"\n🔗 Relationships:")
-        print(f"   • Fact → dim_athlete:  {fact['athlete_key'].nunique()} athletes")
-        print(f"   • Fact → dim_country:  {fact['country_key'].nunique()} countries")
-        print(f"   • Fact → dim_event:    {fact['event_key'].nunique()} events")
-        print(f"   • Fact → dim_games:    {fact['games_key'].nunique()} games")
-        
-        print(f"\n✨ Medal Statistics (from Fact):")
-        medals_total = fact['medal_flag'].sum()
-        print(f"   • Total medal winners:  {medals_total:>7}")
-        print(f"   • Medal rate:           {medals_total/len(fact)*100:>6.2f}%")
 
         print("\n" + "="*70)
         print("✅ STAR SCHEMA CREATED SUCCESSFULLY!")
@@ -238,56 +232,248 @@ class GoldLayer:
         return dim_athlete, dim_country, dim_event, dim_games, fact
 
 
-# ===== QUERY EXAMPLES =====
+class GoldStarBuilder:
+    """Builds star schema with an optional staging step"""
 
-class GoldQueries:
-    """Example queries on the star schema"""
+    def __init__(self, staging_dir: Path = None):
+        self.gold = GoldLayer()
+        self.staging_dir = staging_dir or GOLD_STAGING_DIR
 
-    @staticmethod
-    def top_athletes_by_medals(fact, dim_athlete):
-        """Top athletes by medal count"""
-        result = (fact[fact['medal_flag'] == 1]
-                  .groupby('athlete_key')
-                  .size()
-                  .reset_index(name='medal_count')
-                  .merge(dim_athlete[['athlete_key', 'name']], on='athlete_key')
-                  .sort_values('medal_count', ascending=False)
-                  .head(10))
-        return result
+    def _load_dim_if_exists(self, filename: str):
+        dim_path = GOLD_DIR / filename
+        if dim_path.exists():
+            return pd.read_parquet(dim_path)
+        return None
 
-    @staticmethod
-    def medals_by_country(fact, dim_country):
-        """Medal count by country"""
-        result = (fact[fact['medal_flag'] == 1]
-                  .groupby('country_key')
-                  .size()
-                  .reset_index(name='medal_count')
-                  .merge(dim_country[['country_key', 'region']], on='country_key')
-                  .sort_values('medal_count', ascending=False)
-                  .head(20))
-        return result
+    def _next_key(self, df: pd.DataFrame, key_col: str) -> int:
+        if df is None or df.empty:
+            return 1
+        return int(df[key_col].max()) + 1
 
-    @staticmethod
-    def medals_by_sport(fact, dim_event):
-        """Medal count by sport"""
-        result = (fact[fact['medal_flag'] == 1]
-                  .groupby('event_key')['medal_flag']
-                  .sum()
-                  .reset_index(name='medal_count')
-                  .merge(dim_event[['event_key', 'sport']], on='event_key')
-                  .groupby('sport')['medal_count']
-                  .sum()
-                  .reset_index(name='medal_count')
-                  .sort_values('medal_count', ascending=False))
-        return result
+    def _merge_dim_athlete_scd1(self, existing_dim: pd.DataFrame,
+                               staged_dim: pd.DataFrame) -> pd.DataFrame:
+        if existing_dim is None or existing_dim.empty:
+            return staged_dim
 
-    @staticmethod
-    def medals_by_games(fact, dim_games):
-        """Medal count by Olympic games"""
-        result = (fact[fact['medal_flag'] == 1]
-                  .groupby('games_key')
-                  .size()
-                  .reset_index(name='medal_count')
-                  .merge(dim_games[['games_key', 'games', 'year', 'city']], on='games_key')
-                  .sort_values('year', ascending=False))
-        return result
+        merged = existing_dim.copy()
+        now = datetime.now()
+
+        for _, row in staged_dim.iterrows():
+            athlete_id = row["id"]
+            mask = merged["id"] == athlete_id
+            if mask.any():
+                merged.loc[mask, ["name", "sex", "team", "height", "weight"]] = \
+                    row[["name", "sex", "team", "height", "weight"]].values
+                merged.loc[mask, "dw_update_date"] = now
+            else:
+                new_key = self._next_key(merged, "athlete_key")
+                new_row = {
+                    "athlete_key": new_key,
+                    "id": row["id"],
+                    "name": row["name"],
+                    "sex": row["sex"],
+                    "team": row["team"],
+                    "height": row["height"],
+                    "weight": row["weight"],
+                    "dw_insert_date": now,
+                    "dw_update_date": now
+                }
+                merged = pd.concat([merged, pd.DataFrame([new_row])], ignore_index=True)
+
+        return merged
+
+    def _merge_dim_country_scd2(self, existing_dim: pd.DataFrame,
+                                staged_dim: pd.DataFrame) -> pd.DataFrame:
+        if existing_dim is None or existing_dim.empty:
+            return staged_dim
+
+        merged = existing_dim.copy()
+        now = datetime.now()
+
+        for _, row in staged_dim.iterrows():
+            noc = row["noc"]
+            current_mask = (merged["noc"] == noc) & (merged["is_current"] == True)
+            if not current_mask.any():
+                new_key = self._next_key(merged, "country_key")
+                new_row = {
+                    "country_key": new_key,
+                    "noc": row["noc"],
+                    "region": row["region"],
+                    "notes": row["notes"],
+                    "effective_date": now,
+                    "end_date": pd.Timestamp("2999-12-31"),
+                    "is_current": True,
+                    "dw_insert_date": now
+                }
+                merged = pd.concat([merged, pd.DataFrame([new_row])], ignore_index=True)
+                continue
+
+            current_row = merged[current_mask].iloc[0]
+            changed = False
+            for col in ["region", "notes"]:
+                if str(row[col]) != str(current_row[col]):
+                    changed = True
+                    break
+
+            if changed:
+                merged.loc[current_mask, "end_date"] = now
+                merged.loc[current_mask, "is_current"] = False
+                new_key = self._next_key(merged, "country_key")
+                new_row = {
+                    "country_key": new_key,
+                    "noc": row["noc"],
+                    "region": row["region"],
+                    "notes": row["notes"],
+                    "effective_date": now,
+                    "end_date": pd.Timestamp("2999-12-31"),
+                    "is_current": True,
+                    "dw_insert_date": now
+                }
+                merged = pd.concat([merged, pd.DataFrame([new_row])], ignore_index=True)
+
+        return merged
+
+    def _merge_dim_type0(self, existing_dim: pd.DataFrame,
+                         staged_dim: pd.DataFrame,
+                         natural_keys: list,
+                         key_col: str) -> pd.DataFrame:
+        if existing_dim is None or existing_dim.empty:
+            return staged_dim
+
+        merged = existing_dim.copy()
+        now = datetime.now()
+        existing_keys = set(
+            tuple(x) for x in merged[natural_keys].itertuples(index=False, name=None)
+        )
+
+        new_rows = []
+        for _, row in staged_dim.iterrows():
+            nk = tuple(row[natural_keys].values)
+            if nk not in existing_keys:
+                new_key = self._next_key(merged, key_col)
+                new_row = row.to_dict()
+                new_row[key_col] = new_key
+                new_row["dw_insert_date"] = now
+                new_rows.append(new_row)
+                existing_keys.add(nk)
+
+        if new_rows:
+            merged = pd.concat([merged, pd.DataFrame(new_rows)], ignore_index=True)
+
+        return merged
+
+    def build_star_schema(self, df_athletes: pd.DataFrame,
+                          df_noc_regions: pd.DataFrame,
+                          run_quality_checks: bool = True):
+        """
+        Build complete star schema without governance side effects.
+        
+        Args:
+            df_athletes: Silver layer athlete events data
+            df_noc_regions: Silver layer NOC regions data
+            run_quality_checks: Unused (kept for compatibility)
+        """
+        print("\n" + "=" * 70)
+        print("🟡 GOLD LAYER - STAR SCHEMA BUILD")
+        print("=" * 70)
+
+        return self.gold.create_star_schema(
+            df_athletes,
+            df_noc_regions,
+            save_tables=False
+        )
+
+    def build_star_schema_incremental(self, df_athletes: pd.DataFrame,
+                                      df_noc_regions: pd.DataFrame,
+                                      existing_fact_path: str = None,
+                                      run_quality_checks: bool = True):
+        """
+        Build star schema with a staging step and incremental fact append.
+        
+        Args:
+            df_athletes: Silver layer athlete events data
+            df_noc_regions: Silver layer NOC regions data
+            existing_fact_path: Path to existing fact table (None = full rebuild)
+            run_quality_checks: Unused (kept for compatibility)
+        """
+        print("\n" + "=" * 70)
+        print("🟡 GOLD LAYER - INCREMENTAL STAR SCHEMA BUILD")
+        print("=" * 70)
+
+        # Stage a full build in gold_staging
+        print("\n📦 STAGING: Building new dims/facts in gold_staging")
+        dim_athlete_stage, dim_country_stage, dim_event_stage, dim_games_stage, staged_fact = \
+            self.gold.create_star_schema(
+                df_athletes,
+                df_noc_regions,
+                save_tables=True,
+                target_dir=self.staging_dir
+            )
+
+        # If no existing fact table, return staged results as full build
+        if existing_fact_path is None or not Path(existing_fact_path).exists():
+            stats = {
+                "mode": "full",
+                "new_rows": len(staged_fact),
+                "appended_rows": 0,
+                "duplicate_keys_skipped": 0
+            }
+            return dim_athlete_stage, dim_country_stage, dim_event_stage, dim_games_stage, staged_fact, stats
+
+        # Merge staged dims into existing dims
+        print("\n🔁 MERGE: Updating dimensions from staging")
+        existing_athlete = self._load_dim_if_exists("dim_athlete.parquet")
+        existing_country = self._load_dim_if_exists("dim_country.parquet")
+        existing_event = self._load_dim_if_exists("dim_event.parquet")
+        existing_games = self._load_dim_if_exists("dim_games.parquet")
+
+        dim_athlete = self._merge_dim_athlete_scd1(existing_athlete, dim_athlete_stage)
+        dim_country = self._merge_dim_country_scd2(existing_country, dim_country_stage)
+        dim_event = self._merge_dim_type0(existing_event, dim_event_stage,
+                                          natural_keys=["event", "sport"],
+                                          key_col="event_key")
+        dim_games = self._merge_dim_type0(existing_games, dim_games_stage,
+                                          natural_keys=["games", "year", "season", "city"],
+                                          key_col="games_key")
+
+        # Incremental append using merged dimensions
+        print("\n♻️  INCREMENTAL MODE: Appending to existing fact table")
+        existing_fact = pd.read_parquet(existing_fact_path)
+        print(f"📖 Loaded existing fact table: {len(existing_fact)} rows")
+
+        new_fact = self.gold.create_fact_athlete_event_result(
+            df_athletes, dim_athlete, dim_country, dim_event, dim_games
+        )
+
+        key_columns = ["athlete_key", "event_key", "games_key"]
+        existing_keys = (existing_fact[key_columns]
+                         .astype(str)
+                         .agg("|".join, axis=1))
+        staged_keys = (new_fact[key_columns]
+                       .astype(str)
+                       .agg("|".join, axis=1))
+
+        mask_new = ~staged_keys.isin(existing_keys)
+        new_rows_only = new_fact[mask_new].reset_index(drop=True)
+
+        duplicates_skipped = len(new_fact) - len(new_rows_only)
+        print(f"✅ New unique records: {len(new_rows_only)}")
+        if duplicates_skipped > 0:
+            print(f"⏭️  Duplicate keys skipped: {duplicates_skipped}")
+
+        merged_fact = pd.concat([existing_fact, new_rows_only], ignore_index=True)
+
+        print("\n📊 Fact table statistics:")
+        print(f"   • Before:  {len(existing_fact)} rows")
+        print(f"   • Added:   {len(new_rows_only)} rows")
+        print(f"   • After:   {len(merged_fact)} rows")
+
+        stats = {
+            "mode": "incremental",
+            "new_rows": len(new_fact),
+            "appended_rows": len(new_rows_only),
+            "duplicate_keys_skipped": duplicates_skipped
+        }
+
+        return dim_athlete, dim_country, dim_event, dim_games, merged_fact, stats
+
